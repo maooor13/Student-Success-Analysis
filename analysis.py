@@ -4,7 +4,7 @@ Aging  sleeping quality connection
 '''
 import numpy as np
 import pandas as pd
-from numpy.ma.extras import average
+
 df = pd.read_csv('data/Exam_Score_Prediction.csv') # reading data file
 
 def sleeping_time_age_correlation(df):
