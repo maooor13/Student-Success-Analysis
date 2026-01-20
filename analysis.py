@@ -4,8 +4,13 @@ Aging  sleeping quality connection
 '''
 import numpy as np
 import pandas as pd
+from scipy import stats
+
+from data import calculate_steiger_z
+
+
 from data import log1_column
-from data import sleep_quality_map
+from data import -_map
 from numpy.ma.extras import average
 df = pd.read_csv('data/Exam_Score_Prediction.csv') # reading data file
 
@@ -35,6 +40,55 @@ def age_sleep_quality_correlation(df):
     '''
     return corr
 
+'''
+Is there a better correlation between
+   sleep hours   and exam score 
+or sleep quality and exam score?
+'''
+def sleep_hours_exam_score_correlation(df: pd.DataFrame):
+    return df["sleep_hours"].corr(df["exam_score"], method="spearman")
+
+
+def sleep_quality_exam_score_correlation(df: pd.DataFrame):
+    return df["sleep_quality_num"].corr(df["exam_score"], method="spearman")
+
+
+def sleep_quality_sleep_hours_correlation(df: pd.DataFrame):
+    return df["sleep_hours"].corr(df["sleep_quality_num"], method="spearman")
+ 
+
+def compare_sleep_quality_and_hours_with_score(df: pd.DataFrame):
+    """
+    Docstring for compare_sleep_quality_and_hours_with_score
+    Compares correlation between 3 variables:
+    - Sleep Quality
+    - Sleep Hours
+    - Exam Score
+
+    :param df: Description
+    :type df: pd.DataFrame
+    """
+    sample_size = len(df["exam_score"])
+    hours_score_corr = sleep_hours_exam_score_correlation(df)
+    quality_score_corr = sleep_quality_exam_score_correlation(df)
+    quality_hours_corr = sleep_quality_sleep_hours_correlation(df)
+    z_score, p_value = calculate_steiger_z(hours_score_corr, quality_score_corr, quality_hours_corr, sample_size)
+    print(f"Sleep Correlation (Hours vs Score):   {hours_score_corr}")
+    print(f"Sleep Correlation (Quality vs Score): {quality_score_corr}")
+    print(f"Sleep Correlation (Hours vs Quality): {quality_hours_corr}")
+    if p_value < 0.05:
+        winner = "Sleep Hours" if abs(hours_score_corr) > abs(quality_score_corr) else "Sleep Quality"
+        print(f"CONCLUSION: Significant difference found.\nThe stronger predictor is {winner}.")
+    else:
+        print("CONCLUSION: No significant difference.\nBoth variables predict the exam score equally well.")
+
+    print("-" * 30)
+    print(f"Sleep Steiger's Z-Score: {z_score:.4f}")
+    print(f"Sleep P-value:           {p_value:.4g}") # .4g handles very small scientific notation
+
+    print("-" * 30)
+
+    return z_score, p_value
 def best_study_method(df):
     """
     The following function will sort the most successful learning method by returning a list where 0 index is the best
