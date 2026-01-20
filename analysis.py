@@ -10,7 +10,7 @@ from data import calculate_steiger_z
 
 
 from data import log1_column
-from data import -_map
+from data import sleep_quality_map
 from numpy.ma.extras import average
 df = pd.read_csv('data/Exam_Score_Prediction.csv') # reading data file
 
@@ -102,12 +102,8 @@ def best_study_method(df):
     sorted_method = reliable_method_size.sort_values(by=['mean'], ascending=False) #sorting method where best performing at [0]
     return sorted_method['mean'].to_dict()
 
-'''
-ranking_method_dict = best_study_method(df)
-print("ranking learning methods (above 5 subjects) ")
-for i, (method, average) in enumerate(ranking_method_dict.items(), 1):
-    print(f"{i}. {method}: {average:.2f}")
-'''
+
+
 
 
 
