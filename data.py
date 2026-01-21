@@ -13,8 +13,16 @@ def import_data(filepath='data/Exam_Score_Prediction.csv'):
     '''
     return pd.read_csv(filepath)
 
-def clean_data():
-    pass
+
+def clean_data(df: pd.DataFrame) -> pd.DataFrame:
+    clean_df = df.copy()
+    clean_df = sleep_quality_map(clean_df)
+    clean_df = clean_df.dropna(subset=['exam_score','study_method']) #clearing empty cells for honest mean and ranking
+    clean_df['sleep_time_log'] = log1_column(clean_df, 'sleep_hours') #creating log values - for accuracy and stability of correlation
+    clean_df['age_log'] = log1_column(clean_df, 'age') #creating log values - for accuracy and stability of correlation
+    clean_df['sleep_quality_log'] = np.log(clean_df['sleep_quality_num'])  #creating log values (using regular log, no possible 0 value)
+
+    return clean_df
 
 
 # --- Steiger's Z-Test Implementation ---
