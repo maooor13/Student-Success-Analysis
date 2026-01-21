@@ -49,10 +49,12 @@ def calculate_steiger_z(r12, r13, r23, n):
 
     return z_score, p_value
 
+
 def log1_column (df, string): #valid for numeral data only
     tmp_df = df.copy()
     tmp_df['new_log'] = np.log1p(df[string])
     return tmp_df['new_log']
+
 
 def sleep_quality_map (df: pd.DataFrame):
     '''
