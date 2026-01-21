@@ -51,7 +51,8 @@ def log1_column (df, string): #valid for numeral data only
     tmp_df['new_log'] = np.log1p(df[string])
     return tmp_df['new_log']
 
-def sleep_quality_map (df):
+def sleep_quality_map (df: pd.DataFrame):
+    new_df = df.copy()
     quality_num_map = {'poor': 1, 'average': 2, 'good': 3}  # creating a map to turn strings into numbers
-    df["sleep_quality_num"] = df['sleep_quality'].map(quality_num_map)  # using the map to translate strings into numbers
-    return df
+    new_df["sleep_quality_num"] = new_df['sleep_quality'].map(quality_num_map)  # using the map to translate strings into numbers
+    return new_df
