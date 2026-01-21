@@ -55,6 +55,12 @@ def log1_column (df, string): #valid for numeral data only
     return tmp_df['new_log']
 
 def sleep_quality_map (df: pd.DataFrame):
+    '''
+    'sleep_quality' is an ordinal variable but it is a text, so we convert it to numbers 
+    
+    :param df: DataFrame with the data
+    :type df: pd.DataFrame
+    '''
     new_df = df.copy()
     quality_num_map = {'poor': 1, 'average': 2, 'good': 3}  # creating a map to turn strings into numbers
     new_df["sleep_quality_num"] = new_df['sleep_quality'].map(quality_num_map)  # using the map to translate strings into numbers
