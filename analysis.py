@@ -2,43 +2,31 @@
 Aging sleeping time connection
 Aging  sleeping quality connection
 '''
-import numpy as np
 import pandas as pd
-from scipy import stats
-
 from data import calculate_steiger_z
 
-
-from data import log1_column
-from data import sleep_quality_map
-from numpy.ma.extras import average
-df = pd.read_csv('data/Exam_Score_Prediction.csv') # reading data file
-
-sleep_quality_map(df) #pre-processing stage, creating new colum for sleep quality calculating
 
 def sleeping_time_age_correlation(df):
     '''the following function will calculate the correlation between age and sleeping time - by crating temp df with log values
     for desired cells values, creating more stable calculations via pandas commands'''
     tmp_df = df.copy()
-    tmp_df['sleep_time_log'] = np.log1p(tmp_df['sleep_hours']) #creating log values - for accuracy and stability of correlation
-    tmp_df['age_log'] = np.log1p(tmp_df['age']) #creating log values - for accuracy and stability of correlation
     corr = tmp_df['sleep_time_log'].corr(tmp_df['age_log']) #calculating correlation between values
     '''
     close to 1 - sleeping more as aging, close to 0 - no connection, close to (-1) - sleeping less as aging
     '''
     return corr
 
+
 def age_sleep_quality_correlation(df):
     '''the following function will calculate the correlation between age and sleeping quality - by crating temp df with log values
         for desired cells values, creating more stable calculations via pandas commands'''
     tmp_df = df.copy()
-    tmp_df['age_log'] = log1_column(df, 'age')#creating log values via external function - for accuracy and stability of correlation
-    tmp_df['sleep_quality_log'] = np.log(tmp_df['sleep_quality_num'])  #creating log values (using regular log, no possible 0 value)
     corr = tmp_df['age_log'].corr(tmp_df['sleep_quality_log']) #calculating correlation between values
     '''
     close to 1 - sleeping better as aging, close to 0 - no connection, close to (-1) - sleeping worse as aging
     '''
     return corr
+
 
 '''
 Is there a better correlation between
@@ -89,6 +77,8 @@ def compare_sleep_quality_and_hours_with_score(df: pd.DataFrame):
     print("-" * 30)
 
     return z_score, p_value
+
+
 def best_study_method(df):
     """
     The following function will sort the most successful learning method by returning a list where 0 index is the best
