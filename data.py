@@ -7,11 +7,22 @@ from numpy.ma.extras import average
 df = pd.read_csv('data/Exam_Score_Prediction.csv') # reading data file
 
 
-def import_data():
-    pass
+def import_data(filepath='data/Exam_Score_Prediction.csv'):
+    '''
+    filepath must be a path to a csv file. It can be absolute or relative.
+    '''
+    return pd.read_csv(filepath)
 
-def clean_data():
-    pass
+
+def clean_data(df: pd.DataFrame) -> pd.DataFrame:
+    clean_df = df.copy()
+    clean_df = sleep_quality_map(clean_df)
+    clean_df = clean_df.dropna(subset=['exam_score','study_method']) #clearing empty cells for honest mean and ranking
+    clean_df['sleep_time_log'] = log1_column(clean_df, 'sleep_hours') #creating log values - for accuracy and stability of correlation
+    clean_df['age_log'] = log1_column(clean_df, 'age') #creating log values - for accuracy and stability of correlation
+    clean_df['sleep_quality_log'] = np.log(clean_df['sleep_quality_num'])  #creating log values (using regular log, no possible 0 value)
+
+    return clean_df
 
 
 # --- Steiger's Z-Test Implementation ---
@@ -46,12 +57,21 @@ def calculate_steiger_z(r12, r13, r23, n):
 
     return z_score, p_value
 
+
 def log1_column (df, string): #valid for numeral data only
     tmp_df = df.copy()
     tmp_df['new_log'] = np.log1p(df[string])
     return tmp_df['new_log']
 
-def sleep_quality_map (df):
+
+def sleep_quality_map (df: pd.DataFrame):
+    '''
+    'sleep_quality' is an ordinal variable but it is a text, so we convert it to numbers 
+    
+    :param df: DataFrame with the data
+    :type df: pd.DataFrame
+    '''
+    new_df = df.copy()
     quality_num_map = {'poor': 1, 'average': 2, 'good': 3}  # creating a map to turn strings into numbers
-    df["sleep_quality_num"] = df['sleep_quality'].map(quality_num_map)  # using the map to translate strings into numbers
-    return df
+    new_df["sleep_quality_num"] = new_df['sleep_quality'].map(quality_num_map)  # using the map to translate strings into numbers
+    return new_df
