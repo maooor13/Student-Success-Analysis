@@ -1,5 +1,5 @@
 #from analysis import compare_sleep_quality_and_hours_with_score
-from data import clean_data, df, import_data
+from data import clean_data, import_data
 from analysis import compare_sleep_quality_and_hours_with_score, sleeping_time_age_correlation
 from analysis import age_sleep_quality_correlation
 from analysis import best_study_method
