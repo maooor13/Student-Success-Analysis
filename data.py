@@ -4,9 +4,6 @@ from scipy import stats
 from numpy.ma.extras import average
 
 
-df = pd.read_csv('data/Exam_Score_Prediction.csv') # reading data file
-
-
 def import_data(filepath='data/Exam_Score_Prediction.csv'):
     '''
     filepath must be a path to a csv file. It can be absolute or relative.
