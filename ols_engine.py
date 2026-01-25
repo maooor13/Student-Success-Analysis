@@ -1,0 +1,136 @@
+"""OLS regression engine (statsmodels wrapper).
+
+Library-only:
+- no CSV loading
+- no printing
+- no running analysis on import
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Literal
+
+import numpy as np
+import pandas as pd
+
+# Optional dependency: fail loudly with a clear message at runtime.
+try:
+    import statsmodels.api as sm  # type: ignore
+except Exception:  # pragma: no cover
+    sm = None
+
+
+@dataclass(frozen=True)
+class ols_outputs:
+    """Container for standardized OLS outputs."""
+    model: Any  # statsmodels regression results
+    coefficients: pd.DataFrame
+    metrics: dict[str, float]
+
+
+def _require_statsmodels() -> None:
+    if sm is None:
+        raise ImportError(
+            "statsmodels is required for OLS regression outputs (p-values, CI). "
+            "Add 'statsmodels' to requirements and install it."
+        )
+
+
+def run_ols(
+    X: pd.DataFrame,
+    y: pd.Series,
+    *,
+    add_constant: bool = True,
+    robust: Literal[None, "HC0", "HC1", "HC2", "HC3"] = None,
+    alpha: float = 0.05,
+) -> ols_outputs:
+    """Fit OLS regression and return standardized outputs.
+
+    Parameters:
+    - add_constant: adds intercept term
+    - robust: if provided, uses heteroscedasticity-robust covariance (HC0/1/2/3)
+    - alpha: CI level (0.05 -> 95% CI)
+    """
+    _require_statsmodels()
+
+    X_mat = X.copy()
+    if add_constant:
+        X_mat = sm.add_constant(X_mat, has_constant="add")
+
+    model = sm.OLS(y, X_mat).fit()
+
+    if robust is not None:
+        model = model.get_robustcov_results(cov_type=robust)
+
+    params = model.params
+    bse = model.bse
+    tvals = model.tvalues
+    pvals = model.pvalues
+
+    # Depending on statsmodels results class (e.g., robustcov),
+    # params/bse/tvalues/pvalues may be numpy arrays without an index.
+    # Use the design-matrix column names as the canonical predictor index.
+    predictor_index = pd.Index(getattr(params, "index", X_mat.columns), name="predictor")
+
+    ci_raw = model.conf_int(alpha=alpha)
+
+    # statsmodels may return either a DataFrame or a numpy array depending on
+    # the results class (e.g., robustcov) and statsmodels version.
+    if isinstance(ci_raw, pd.DataFrame):
+        ci = ci_raw.copy()
+        ci.columns = ["ci_low", "ci_high"]
+    else:
+        # numpy array with shape (k, 2)
+        ci = pd.DataFrame(ci_raw, index=predictor_index, columns=["ci_low", "ci_high"])
+
+    coef_df = pd.DataFrame(
+        {
+            "coef": np.asarray(params),
+            "std_err": np.asarray(bse),
+            "t": np.asarray(tvals),
+            "p": np.asarray(pvals),
+        },
+        index=predictor_index,
+    ).join(ci)
+    coef_df = coef_df.reset_index()
+    metrics = {
+        "r2": float(model.rsquared),
+        "adj_r2": float(model.rsquared_adj),
+        "n_obs": float(model.nobs),
+        "df_model": float(model.df_model),
+    }
+    return ols_outputs(model=model, coefficients=coef_df, metrics=metrics)
+
+
+def predict_ols(
+    ols: ols_outputs,
+    X: pd.DataFrame,
+    *,
+    add_constant: bool = True,
+) -> np.ndarray:
+    """Predict using a fitted ols_outputs model."""
+    _require_statsmodels()
+
+    X_mat = X.copy()
+    if add_constant:
+        X_mat = sm.add_constant(X_mat, has_constant="add")
+
+    return np.asarray(ols.model.predict(X_mat))
+
+
+def evaluate_regression(
+    y_true: pd.Series | np.ndarray,
+    y_pred: np.ndarray
+) -> dict[str, float]:
+    """Basic regression metrics (R2, MAE, RMSE)."""
+    y_true_arr = np.asarray(y_true)
+
+    ss_res = float(np.sum((y_true_arr - y_pred) ** 2))
+    ss_tot = float(np.sum((y_true_arr - float(np.mean(y_true_arr))) ** 2))
+
+    r2 = 1.0 - (ss_res / ss_tot) if ss_tot != 0 else float("nan")
+    mae = float(np.mean(np.abs(y_true_arr - y_pred)))
+    rmse = float(np.sqrt(np.mean((y_true_arr - y_pred) ** 2)))
+
+    return {"r2": r2, "mae": mae, "rmse": rmse}

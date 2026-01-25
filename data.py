@@ -338,3 +338,53 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     clean_df.attrs["preprocess_report"] = report
 
     return clean_df
+
+
+def infer_column_roles(
+    df: pd.DataFrame,
+    *,
+    target: str = "exam_score",
+    max_ordinal_levels: int = 7,
+) -> dict[str, list[str] | str]:
+    """Infer semantic roles of columns for modeling.
+
+    Assumes:
+    - `df` is already cleaned by `clean_data`
+    - no missing values
+
+    Rules (deterministic, no heuristics):
+    - target: explicitly provided
+    - binary: numeric columns with exactly 2 unique values
+    - ordinal: numeric columns with 3..max_ordinal_levels unique values
+    - continuous: numeric columns with > max_ordinal_levels unique values
+
+    Columns not numeric and not target are ignored.
+    """
+    if target not in df.columns:
+        raise KeyError(f"Target column '{target}' not found in dataframe")
+
+    roles: dict[str, list[str] | str] = {
+        "target": target,
+        "binary": [],
+        "ordinal": [],
+        "continuous": [],
+    }
+
+    for col in df.columns:
+        if col == target:
+            continue
+
+        s = df[col]
+        if not pd.api.types.is_numeric_dtype(s):
+            continue
+
+        nunique = s.nunique()
+
+        if nunique == 2:
+            roles["binary"].append(col)
+        elif 3 <= nunique <= max_ordinal_levels:
+            roles["ordinal"].append(col)
+        elif nunique > max_ordinal_levels:
+            roles["continuous"].append(col)
+
+    return roles
