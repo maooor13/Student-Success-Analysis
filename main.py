@@ -83,8 +83,6 @@ def main():
     )
     logger.info("Target: %s", roles["target"])
 
-    robust = None if CONF.OSL_ROBUST == "none" else CONF.OSL_ROBUST
-
     # 3) Build X/y for each model
     X_base, y = build_baseline_xy(df, roles)
     X_behav, y2 = build_behavior_xy(df, roles)   # default includes exam_difficulty_num if present
@@ -94,9 +92,9 @@ def main():
     assert y.index.equals(y2.index) and y.index.equals(y3.index)
 
     # 4) Fit OLS models
-    ols_base = run_ols(X_base, y, robust=robust)
-    ols_beh = run_ols(X_behav, y, robust=robust)
-    ols_full = run_ols(X_full, y, robust=robust)
+    ols_base = run_ols(X_base, y, robust=CONF.OSL_ROBUST)
+    ols_beh = run_ols(X_behav, y, robust=CONF.OSL_ROBUST)
+    ols_full = run_ols(X_full, y, robust=CONF.OSL_ROBUST)
 
     # 5) Print results
     if logger.isEnabledFor(logging.DEBUG):
