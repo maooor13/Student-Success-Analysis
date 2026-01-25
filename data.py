@@ -247,15 +247,11 @@ def load_data(filepath='data/Exam_Score_Prediction.csv'):
     filepath must be a path to a csv file. It can be absolute or relative.
     '''
     df = pd.read_csv(filepath)
-    return standardize_column_names(df)
+    return df
 
 
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     clean_df = standardize_column_names(df)
-
-    report = {"rows_in": int(clean_df.shape[0])}
-    report["remaining_indices"] = set(clean_df.index)
-
     # 1) First protective layer: normalize common missing tokens and drop missing rows
     obj_cols = clean_df.select_dtypes(include=["object"]).columns
     if len(obj_cols) > 0:
@@ -268,18 +264,12 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
         )
 
     clean_df = clean_df.dropna()
-    prev_idx = report["remaining_indices"]
     curr_idx = set(clean_df.index)
-    report["dropped_rows_missing_initial"] = sorted(prev_idx - curr_idx)
-    report["remaining_indices"] = curr_idx
-    report["rows_after_dropna_initial"] = int(clean_df.shape[0])
 
     # 2) Infer binary/ordinal mappings for object columns (adds *_num)
     before_cols = set(clean_df.columns)
     clean_df = infer_categorical_mappings(clean_df)
     after_cols = set(clean_df.columns)
-    report["num_columns_created"] = _count_new_num_columns(before_cols, after_cols)
-    report["rows_after_mapping"] = int(clean_df.shape[0])
 
     # 3) Detect numeric-like object columns and coerce them
     coerced_cols = []
@@ -301,15 +291,9 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
         clean_df[col] = s
         coerced_cols.append(col)
 
-    report["numeric_columns_coerced"] = coerced_cols
-
     # 3b) Second protective layer: coercion may introduce NaNs; drop them here to keep invariant
     clean_df = clean_df.dropna()
-    prev_idx = report["remaining_indices"]
     curr_idx = set(clean_df.index)
-    report["dropped_rows_missing_after_coercion"] = sorted(prev_idx - curr_idx)
-    report["remaining_indices"] = curr_idx
-    report["rows_after_dropna_after_coercion"] = int(clean_df.shape[0])
 
     # 4) Rule-based log features for eligible skewed continuous numeric columns
     clean_df, created_logs = add_log_features(
@@ -318,7 +302,6 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
         skew_threshold=1.0,
         exclude=["exam_score"],
     )
-    report["log_columns_created"] = created_logs
 
     # 5) Global IQR outlier removal across continuous numeric columns only
     clean_df = apply_iqr_outlier_removal(
@@ -327,15 +310,7 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
         k=1.5,
         min_unique=7,
     )
-    prev_idx = report["remaining_indices"]
     curr_idx = set(clean_df.index)
-    report["dropped_rows_outliers"] = sorted(prev_idx - curr_idx)
-    report["remaining_indices"] = curr_idx
-    report["rows_after_outliers"] = int(clean_df.shape[0])
-
-    # Attach report to dataframe metadata (does not change return type)
-    report.pop("remaining_indices", None)
-    clean_df.attrs["preprocess_report"] = report
 
     return clean_df
 
