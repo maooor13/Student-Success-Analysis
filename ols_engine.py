@@ -14,11 +14,7 @@ from typing import Any, Literal
 import numpy as np
 import pandas as pd
 
-# Optional dependency: fail loudly with a clear message at runtime.
-try:
-    import statsmodels.api as sm  # type: ignore
-except Exception:  # pragma: no cover
-    sm = None
+import statsmodels.api as sm  # type: ignore
 
 
 @dataclass(frozen=True)
@@ -117,20 +113,3 @@ def predict_ols(
         X_mat = sm.add_constant(X_mat, has_constant="add")
 
     return np.asarray(ols.model.predict(X_mat))
-
-
-def evaluate_regression(
-    y_true: pd.Series | np.ndarray,
-    y_pred: np.ndarray
-) -> dict[str, float]:
-    """Basic regression metrics (R2, MAE, RMSE)."""
-    y_true_arr = np.asarray(y_true)
-
-    ss_res = float(np.sum((y_true_arr - y_pred) ** 2))
-    ss_tot = float(np.sum((y_true_arr - float(np.mean(y_true_arr))) ** 2))
-
-    r2 = 1.0 - (ss_res / ss_tot) if ss_tot != 0 else float("nan")
-    mae = float(np.mean(np.abs(y_true_arr - y_pred)))
-    rmse = float(np.sqrt(np.mean((y_true_arr - y_pred) ** 2)))
-
-    return {"r2": r2, "mae": mae, "rmse": rmse}
