@@ -38,7 +38,7 @@ def compute_vif(
     if variance_inflation_factor is None:
         raise ImportError("statsmodels variance_inflation_factor is unavailable")
 
-    X_mat = X.copy()
+    X_mat: pd.DataFrame = X.copy()
     if add_constant:
         X_mat = sm.add_constant(X_mat, has_constant="add")
 
