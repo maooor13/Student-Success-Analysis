@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from conf import Conf
 from data import load_data, clean_data
 from design import build_baseline_xy, build_behavior_xy, build_full_xy
 from ols_engine import run_ols
@@ -44,56 +45,24 @@ def log_model(label: str, ols_out) -> None:
         )
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Run exam score regression pipeline.")
-    parser.add_argument(
-        "--csv",
-        type=str,
-        default="Exam_Score_Prediction.csv",
-        help="Path to CSV dataset (default: Exam_Score_Prediction.csv)",
-    )
-    parser.add_argument(
-        "--target",
-        type=str,
-        default="exam_score",
-        help="Target column name (default: exam_score)",
-    )
-    parser.add_argument(
-        "--robust",
-        type=str,
-        default="HC3",
-        choices=["HC0", "HC1", "HC2", "HC3", "none"],
-        help="Robust standard errors (default: HC3)",
-    )
-    parser.add_argument(
-        "--log-level",
-        type=str,
-        default="INFO",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        help="Logging verbosity (default: INFO)",
-    )
-    parser.add_argument(
-        "--diagnostics",
-        action="store_true",
-        help="Run extra diagnostics (VIF, residual summary). Off by default.",
-    )
-    args = parser.parse_args()
+def main():
+    CONF = Conf()
 
     logging.basicConfig(
-        level=getattr(logging, args.log_level),
+        level=getattr(logging, CONF.LOG_LEVEL),
         format="%(levelname)s: %(message)s",
     )
 
-    csv_path = Path(args.csv)
-    if not csv_path.exists():
-        raise FileNotFoundError(f"CSV not found: {csv_path.resolve()}")
+    try:
+        raw_df = load_data(CONF.CSV)
+    except Exception as e:
+        logger.error(f"Error loading data file {CONF.CSV}.")
+        logger.debug(e)
+        exit()
 
-    # 1) Load + clean
-    raw_df = load_data(str(csv_path))
     df = clean_data(raw_df)
 
-    # 2) Infer roles (binary/ordinal/continuous)
-    roles = infer_column_roles(df, target=args.target, max_ordinal_levels=7)
+    roles = infer_column_roles(df, target=CONF.TARGET, max_ordinal_levels=7)
 
     # Analysis policy: exclude identifier-like columns from predictors
     exclude_cols = {"student_id"}
@@ -114,7 +83,7 @@ def main() -> None:
     )
     logger.info("Target: %s", roles["target"])
 
-    robust = None if args.robust == "none" else args.robust
+    robust = None if CONF.OSL_ROBUST == "none" else CONF.OSL_ROBUST
 
     # 3) Build X/y for each model
     X_base, y = build_baseline_xy(df, roles)
@@ -136,25 +105,24 @@ def main() -> None:
 
     log_model("Full model (binary + ordinal + continuous)", ols_full)
 
-    # 6) Diagnostics on FULL model (most relevant)
-    if args.diagnostics:
-        logger.info("%s", "\n" + "-" * 80)
-        logger.info("Diagnostics (FULL model)")
-        logger.info("%s", "-" * 80)
+# Diagnostic part
+    logger.info("%s", "\n" + "-" * 80)
+    logger.info("Diagnostics (FULL model)")
+    logger.info("%s", "-" * 80)
 
-        try:
-            vif = compute_vif(X_full)
-            logger.info("Top VIFs (largest first):\n%s", vif.sort_values("vif", ascending=False).head(15).to_string(index=False))
-        except Exception as e:
-            logger.warning("VIF skipped (reason: %s)", e)
+    try:
+        vif = compute_vif(X_full)
+        logger.info("Top VIFs (largest first):\n%s", vif.sort_values("vif", ascending=False).head(15).to_string(index=False))
+    except Exception as e:
+        logger.warning("VIF skipped (reason: %s)", e)
 
-        try:
-            resid = residual_summary(ols_full)
-            logger.info("Residual summary:")
-            for k, v in resid.items():
-                logger.info("%s: %.4f", k, v)
-        except Exception as e:
-            logger.warning("Residual summary skipped (reason: %s)", e)
+    try:
+        resid = residual_summary(ols_full)
+        logger.info("Residual summary:")
+        for k, v in resid.items():
+            logger.info("%s: %.4f", k, v)
+    except Exception as e:
+        logger.warning("Residual summary skipped (reason: %s)", e)
 
     # 7) Model comparison (key story)
     logger.info("%s", "\n" + "-" * 80)
