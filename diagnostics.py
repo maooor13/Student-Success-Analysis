@@ -12,8 +12,7 @@ from design import _get_target
 
 import statsmodels.api as sm
 from statsmodels.stats.outliers_influence import variance_inflation_factor 
-from scipy import stats  # type: ignore
-
+from scipy import stats
 
 def _require_statsmodels() -> None:
     if sm is None:
