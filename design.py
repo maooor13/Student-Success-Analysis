@@ -1,11 +1,4 @@
-"""Study design utilities: build X/y for each regression model.
-
-Library-only:
-- no CSV loading
-- no printing
-- no running analysis on import
-"""
-
+#building separate baseline and behavior matrixes with predictors and target vector and matrix mixing both  
 from __future__ import annotations
 
 from typing import Any
