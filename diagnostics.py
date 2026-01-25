@@ -10,18 +10,9 @@ import pandas as pd
 
 from design import _get_target
 
-# Optional deps: wrap them so the project can fail loudly with a clear message.
-try:
-    import statsmodels.api as sm  # type: ignore
-    from statsmodels.stats.outliers_influence import variance_inflation_factor  # type: ignore
-except Exception:  # pragma: no cover
-    sm = None
-    variance_inflation_factor = None
-
-try:
-    from scipy import stats  # type: ignore
-except Exception:  # pragma: no cover
-    stats = None
+import statsmodels.api as sm
+from statsmodels.stats.outliers_influence import variance_inflation_factor 
+from scipy import stats  # type: ignore
 
 
 def _require_statsmodels() -> None:
