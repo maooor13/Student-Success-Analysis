@@ -74,7 +74,7 @@ def main():
         ]
 
     logger.info("Data summary:")
-    logger.info("Rows after cleaning: %d", len(df))
+    logger.debug("Rows after cleaning: %d", len(df))
     logger.info(
         "Role counts: binary=%d, ordinal=%d, continuous=%d",
         len(roles["binary"]),
