@@ -1,11 +1,6 @@
 from __future__ import annotations
 
-import argparse
 import logging
-from pathlib import Path
-
-import numpy as np
-import pandas as pd
 
 from conf import Conf
 from data import load_data, clean_data
