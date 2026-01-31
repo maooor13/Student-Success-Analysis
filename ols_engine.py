@@ -25,14 +25,6 @@ class ols_outputs:
     metrics: dict[str, float]
 
 
-def _require_statsmodels() -> None:
-    if sm is None:
-        raise ImportError(
-            "statsmodels is required for OLS regression outputs (p-values, CI). "
-            "Add 'statsmodels' to requirements and install it."
-        )
-
-
 def run_ols(
     X: pd.DataFrame,
     y: pd.Series,
@@ -48,7 +40,6 @@ def run_ols(
     - robust: if provided, uses heteroscedasticity-robust covariance (HC0/1/2/3)
     - alpha: CI level (0.05 -> 95% CI)
     """
-    _require_statsmodels()
 
     X_mat = X.copy()
     if add_constant:
