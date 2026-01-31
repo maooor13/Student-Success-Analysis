@@ -189,39 +189,12 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
         )
 
     clean_df = clean_df.dropna()
-    curr_idx = set(clean_df.index)
 
     # 2) Infer binary/ordinal mappings for object columns (adds *_num)
-    before_cols = set(clean_df.columns)
-    clean_df = infer_categorical_mappings(clean_df)
-    after_cols = set(clean_df.columns)
+    clean_df = infer_categorical_mappings(clean_df)           
 
-    # 3) Detect numeric-like object columns and coerce them
-    coerced_cols = []
-    for col in clean_df.select_dtypes(include=["object"]).columns:
-        s = pd.to_numeric(clean_df[col], errors="coerce")
-        numeric_ratio = s.notna().mean()
-
-        if numeric_ratio < 0.9:
-            continue
-
-        if s.nunique() < 7:
-            continue
-
-        # Skip identifier-like columns by name
-        col_l = col.lower()
-        if any(k in col_l for k in ("id", "uuid", "guid", "email", "phone", "passport", "ssn")):
-            continue
-
-        clean_df[col] = s
-        coerced_cols.append(col)
-
-    # 3b) Second protective layer: coercion may introduce NaNs; drop them here to keep invariant
-    clean_df = clean_df.dropna()
-    curr_idx = set(clean_df.index)
-
-    # 4) Rule-based log features for eligible skewed continuous numeric columns
-    clean_df, created_logs = add_log_features(
+    # 3) Rule-based log features for eligible skewed continuous numeric columns
+    clean_df, _ = add_log_features(
         clean_df,
         min_unique=7,
         skew_threshold=1.0,
@@ -235,8 +208,6 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
         k=1.5,
         min_unique=7,
     )
-    curr_idx = set(clean_df.index)
-
     return clean_df
 
 
