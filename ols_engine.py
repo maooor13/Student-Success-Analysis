@@ -89,18 +89,3 @@ def run_ols(
     }
     return ols_outputs(model=model, coefficients=coef_df, metrics=metrics)
 
-
-def predict_ols(
-    ols: ols_outputs,
-    X: pd.DataFrame,
-    *,
-    add_constant: bool = True,
-) -> np.ndarray:
-    """Predict using a fitted ols_outputs model."""
-    _require_statsmodels()
-
-    X_mat = X.copy()
-    if add_constant:
-        X_mat = sm.add_constant(X_mat, has_constant="add")
-
-    return np.asarray(ols.model.predict(X_mat))
