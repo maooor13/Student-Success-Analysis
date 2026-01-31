@@ -2,19 +2,6 @@ import numpy as np
 import pandas as pd
 
 
-def _norm_str_series(s: pd.Series) -> pd.Series:
-    """Normalize categorical strings for matching.
-
-    Assumes `clean_data` has already removed missing values.
-    """
-    return (
-        s.astype(str)
-        .str.lower()
-        .str.strip()
-        .str.replace(r"\s+", "_", regex=True)
-    )
-
-
 def enforce_numeric_like_columns(
     df: pd.DataFrame,
     *,
@@ -80,7 +67,7 @@ def infer_categorical_mappings(df: pd.DataFrame) -> pd.DataFrame:
 
     obj_cols = new_df.select_dtypes(include=["object"]).columns.tolist()
     for col in obj_cols:
-        values = _norm_str_series(new_df[col])
+        values = new_df[col]
         uniq = set(values.unique().tolist())
         if not uniq:
             continue
