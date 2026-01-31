@@ -6,7 +6,7 @@ import pandas as pd
 # -----------------------------
 
 def standardize_column_names(df: pd.DataFrame) -> pd.DataFrame:
-    """Lower-case, strip, and replace spaces with underscores for all columns."""
+    """Lower-case, strip, and replace spaces with underscores for all column names."""
     new_df = df.copy()
     new_df.columns = (
         new_df.columns
