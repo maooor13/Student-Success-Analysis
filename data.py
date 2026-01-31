@@ -56,16 +56,6 @@ def infer_categorical_mappings(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # -----------------------------
-# Preprocessing report (metadata)
-# -----------------------------
-
-def _count_new_num_columns(before_cols: set[str], after_cols: set[str]) -> int:
-    """Count how many *_num columns were introduced by mapping/inference."""
-    added = after_cols - before_cols
-    return sum(1 for c in added if c.endswith("_num"))
-
-
-# -----------------------------
 # Universal outlier handling
 # -----------------------------
 
