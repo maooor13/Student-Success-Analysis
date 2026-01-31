@@ -1,22 +1,6 @@
 import numpy as np
 import pandas as pd
 
-# -----------------------------
-# Column name normalization
-# -----------------------------
-
-def standardize_column_names(df: pd.DataFrame) -> pd.DataFrame:
-    """Lower-case, strip, and replace spaces with underscores for all column names."""
-    new_df = df.copy()
-    new_df.columns = (
-        new_df.columns
-        .astype(str)
-        .str.strip()
-        .str.lower()
-        .str.replace(" ", "_", regex=False)
-    )
-    return new_df
-
 
 def _norm_str_series(s: pd.Series) -> pd.Series:
     """Normalize categorical strings for matching.
