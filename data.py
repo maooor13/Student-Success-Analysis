@@ -201,7 +201,7 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
         exclude=["exam_score"],
     )
 
-    # 5) Global IQR outlier removal across continuous numeric columns only
+    # 4) Global IQR outlier removal across continuous numeric columns only
     clean_df = apply_iqr_outlier_removal(
         clean_df,
         exclude=[],
