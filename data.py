@@ -235,7 +235,7 @@ def load_data(filepath='data/Exam_Score_Prediction.csv'):
 
 
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
-    clean_df = standardize_column_names(df)
+    clean_df = df.copy()
     # 1) First protective layer: normalize common missing tokens and drop missing rows
     obj_cols = clean_df.select_dtypes(include=["object"]).columns
     if len(obj_cols) > 0:
