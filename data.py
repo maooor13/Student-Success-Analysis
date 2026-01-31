@@ -2,42 +2,6 @@ import numpy as np
 import pandas as pd
 
 
-def enforce_numeric_like_columns(
-    df: pd.DataFrame,
-    *,
-    min_numeric_ratio: float = 0.9,
-    min_unique: int = 7,
-    exclude: list[str] | None = None
-) -> tuple[pd.DataFrame, list[str]]:
-    """Coerce pre-identified numeric-like columns to numeric dtype.
-
-    This function performs coercion only. All decisions about whether a column
-    should be treated as numeric are made in `clean_data`.
-
-    Any values that fail coercion become NaN and are removed by `clean_data`.
-    """
-    new_df = df.copy()
-    exclude_set = set(exclude or [])
-    coerced_cols: list[str] = []
-
-    for col in new_df.columns:
-        if col in exclude_set:
-            continue
-
-        if pd.api.types.is_numeric_dtype(new_df[col]):
-            continue
-
-        if col.endswith("_num") or col.endswith("_log"):
-            continue
-
-        # Coerce to numeric; any failures become NaN and will be dropped in clean_data
-        coerced = pd.to_numeric(new_df[col], errors="coerce")
-        new_df[col] = coerced
-        coerced_cols.append(col)
-
-    return new_df, coerced_cols
-
-
 # -----------------------------
 # Universal categorical inference
 # -----------------------------
