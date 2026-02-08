@@ -1,35 +1,6 @@
 import numpy as np
 import pandas as pd
 
-# -----------------------------
-# Column name normalization
-# -----------------------------
-
-def standardize_column_names(df: pd.DataFrame) -> pd.DataFrame:
-    """Lower-case, strip, and replace spaces with underscores for all columns."""
-    new_df = df.copy()
-    new_df.columns = (
-        new_df.columns
-        .astype(str)
-        .str.strip()
-        .str.lower()
-        .str.replace(" ", "_", regex=False)
-    )
-    return new_df
-
-
-def _norm_str_series(s: pd.Series) -> pd.Series:
-    """Normalize categorical strings for matching.
-
-    Assumes `clean_data` has already removed missing values.
-    """
-    return (
-        s.astype(str)
-        .str.lower()
-        .str.strip()
-        .str.replace(r"\s+", "_", regex=True)
-    )
-
 
 # -----------------------------
 # Universal categorical inference
@@ -60,7 +31,7 @@ def infer_categorical_mappings(df: pd.DataFrame) -> pd.DataFrame:
 
     obj_cols = new_df.select_dtypes(include=["object"]).columns.tolist()
     for col in obj_cols:
-        values = _norm_str_series(new_df[col])
+        values = new_df[col]
         uniq = set(values.unique().tolist())
         if not uniq:
             continue
@@ -82,6 +53,7 @@ def infer_categorical_mappings(df: pd.DataFrame) -> pd.DataFrame:
             new_df = new_df.drop(columns=[col])
 
     return new_df
+
 
 # -----------------------------
 # Universal outlier handling
@@ -203,7 +175,7 @@ def load_data(filepath='data/Exam_Score_Prediction.csv'):
 
 
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
-    clean_df = standardize_column_names(df)
+    clean_df = df.copy()
     # 1) First protective layer: normalize common missing tokens and drop missing rows
     obj_cols = clean_df.select_dtypes(include=["object"]).columns
     if len(obj_cols) > 0:
@@ -218,45 +190,23 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     clean_df = clean_df.dropna()
 
     # 2) Infer binary/ordinal mappings for object columns (adds *_num)
-    clean_df = infer_categorical_mappings(clean_df)
+    clean_df = infer_categorical_mappings(clean_df)           
 
-    # 3) Detect numeric-like object columns and coerce them
-    for col in clean_df.select_dtypes(include=["object"]).columns:
-        s = pd.to_numeric(clean_df[col], errors="coerce")
-        numeric_ratio = s.notna().mean()
-
-        if numeric_ratio < 0.9:
-            continue
-
-        if s.nunique() < 7:
-            continue
-
-        # Skip identifier-like columns by name
-        col_l = col.lower()
-        if any(k in col_l for k in ("id", "uuid", "guid", "email", "phone", "passport", "ssn")):
-            continue
-
-        clean_df[col] = s
-
-    # 3b) Second protective layer: coercion may introduce NaNs; drop them here to keep invariant
-    clean_df = clean_df.dropna()
-
-    # 4) Rule-based log features for eligible skewed continuous numeric columns
-    clean_df, created_logs = add_log_features(
+    # 3) Rule-based log features for eligible skewed continuous numeric columns
+    clean_df, _ = add_log_features(
         clean_df,
         min_unique=7,
         skew_threshold=1.0,
         exclude=["exam_score"],
     )
 
-    # 5) Global IQR outlier removal across continuous numeric columns only
+    # 4) Global IQR outlier removal across continuous numeric columns only
     clean_df = apply_iqr_outlier_removal(
         clean_df,
         exclude=[],
         k=1.5,
         min_unique=7,
     )
-
     return clean_df
 
 
