@@ -31,42 +31,6 @@ def _norm_str_series(s: pd.Series) -> pd.Series:
     )
 
 
-def enforce_numeric_like_columns(
-    df: pd.DataFrame,
-    *,
-    min_numeric_ratio: float = 0.9,
-    min_unique: int = 7,
-    exclude: list[str] | None = None
-) -> tuple[pd.DataFrame, list[str]]:
-    """Coerce pre-identified numeric-like columns to numeric dtype.
-
-    This function performs coercion only. All decisions about whether a column
-    should be treated as numeric are made in `clean_data`.
-
-    Any values that fail coercion become NaN and are removed by `clean_data`.
-    """
-    new_df = df.copy()
-    exclude_set = set(exclude or [])
-    coerced_cols: list[str] = []
-
-    for col in new_df.columns:
-        if col in exclude_set:
-            continue
-
-        if pd.api.types.is_numeric_dtype(new_df[col]):
-            continue
-
-        if col.endswith("_num") or col.endswith("_log"):
-            continue
-
-        # Coerce to numeric; any failures become NaN and will be dropped in clean_data
-        coerced = pd.to_numeric(new_df[col], errors="coerce")
-        new_df[col] = coerced
-        coerced_cols.append(col)
-
-    return new_df, coerced_cols
-
-
 # -----------------------------
 # Universal categorical inference
 # -----------------------------
@@ -118,17 +82,6 @@ def infer_categorical_mappings(df: pd.DataFrame) -> pd.DataFrame:
             new_df = new_df.drop(columns=[col])
 
     return new_df
-
-
-# -----------------------------
-# Preprocessing report (metadata)
-# -----------------------------
-
-def _count_new_num_columns(before_cols: set[str], after_cols: set[str]) -> int:
-    """Count how many *_num columns were introduced by mapping/inference."""
-    added = after_cols - before_cols
-    return sum(1 for c in added if c.endswith("_num"))
-
 
 # -----------------------------
 # Universal outlier handling
@@ -217,18 +170,17 @@ def add_log_features(
 
     for col in numeric_cols:
         s = new_df[col].astype(float)
-        s_nonnull = s
 
         # continuous-like?
-        if s_nonnull.nunique() < min_unique:
+        if s.nunique() < min_unique:
             continue
 
         # must be non-negative to use log1p safely
-        if (s_nonnull < 0).any():
+        if (s < 0).any():
             continue
 
         # only apply if strongly right-skewed
-        skew = s_nonnull.skew()
+        skew = s.skew()
         if pd.isna(skew) or skew <= skew_threshold:
             continue
 
@@ -264,15 +216,11 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
         )
 
     clean_df = clean_df.dropna()
-    curr_idx = set(clean_df.index)
 
     # 2) Infer binary/ordinal mappings for object columns (adds *_num)
-    before_cols = set(clean_df.columns)
     clean_df = infer_categorical_mappings(clean_df)
-    after_cols = set(clean_df.columns)
 
     # 3) Detect numeric-like object columns and coerce them
-    coerced_cols = []
     for col in clean_df.select_dtypes(include=["object"]).columns:
         s = pd.to_numeric(clean_df[col], errors="coerce")
         numeric_ratio = s.notna().mean()
@@ -289,11 +237,9 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
             continue
 
         clean_df[col] = s
-        coerced_cols.append(col)
 
     # 3b) Second protective layer: coercion may introduce NaNs; drop them here to keep invariant
     clean_df = clean_df.dropna()
-    curr_idx = set(clean_df.index)
 
     # 4) Rule-based log features for eligible skewed continuous numeric columns
     clean_df, created_logs = add_log_features(
@@ -310,7 +256,6 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
         k=1.5,
         min_unique=7,
     )
-    curr_idx = set(clean_df.index)
 
     return clean_df
 
