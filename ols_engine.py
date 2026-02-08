@@ -25,14 +25,6 @@ class ols_outputs:
     metrics: pd.DataFrame
 
 
-def _require_statsmodels() -> None:
-    if sm is None:
-        raise ImportError(
-            "statsmodels is required for OLS regression outputs (p-values, CI). "
-            "Add 'statsmodels' to requirements and install it."
-        )
-
-
 def run_ols(
     X: pd.DataFrame,
     y: pd.Series,
@@ -50,7 +42,6 @@ def run_ols(
     - alpha: CI level (0.05 -> 95% CI)
     - model_name: optional label to attach to output DataFrames (useful when concatenating across specs)
     """
-    _require_statsmodels()
 
     X_mat = X.copy()
     if add_constant:
