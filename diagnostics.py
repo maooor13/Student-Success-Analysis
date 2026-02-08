@@ -14,13 +14,6 @@ import statsmodels.api as sm
 from statsmodels.stats.outliers_influence import variance_inflation_factor 
 from scipy import stats
 
-def _require_statsmodels() -> None:
-    if sm is None:
-        raise ImportError(
-            "statsmodels is required for diagnostics (VIF). "
-            "Add 'statsmodels' to requirements and install it."
-        )
-
 
 def compute_vif(
     X: pd.DataFrame,
@@ -34,7 +27,6 @@ def compute_vif(
     - VIF is undefined for a constant column; if `add_constant` is True we add
       a constant but optionally remove it from the returned table.
     """
-    _require_statsmodels()
     if variance_inflation_factor is None:
         raise ImportError("statsmodels variance_inflation_factor is unavailable")
 
