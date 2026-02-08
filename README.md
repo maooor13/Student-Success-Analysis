@@ -136,7 +136,12 @@ Identifier-like columns (e.g., `student_id` or `*_id`) are excluded from predict
 pip install -r requirements.txt
 python main.py
 ```
-    
+
+To run tests:
+```bash
+python -m pytest -v tests/test_data.py
+```
+
 Outputs are saved to `outputs/`.
 
 ---
