@@ -142,18 +142,17 @@ def add_log_features(
 
     for col in numeric_cols:
         s = new_df[col].astype(float)
-        s_nonnull = s
 
         # continuous-like?
-        if s_nonnull.nunique() < min_unique:
+        if s.nunique() < min_unique:
             continue
 
         # must be non-negative to use log1p safely
-        if (s_nonnull < 0).any():
+        if (s < 0).any():
             continue
 
         # only apply if strongly right-skewed
-        skew = s_nonnull.skew()
+        skew = s.skew()
         if pd.isna(skew) or skew <= skew_threshold:
             continue
 

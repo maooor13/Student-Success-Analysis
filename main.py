@@ -3,41 +3,20 @@ from __future__ import annotations
 import logging
 
 from conf import Conf
-from data import load_data, clean_data
+from data import load_data, clean_data, infer_column_roles
 from design import build_baseline_xy, build_behavior_xy, build_full_xy
-from ols_engine import run_ols
-from diagnostics import compute_vif, residual_summary
-from data import infer_column_roles
+from pathlib import Path
+from ols_engine import run_ols, predict_ols
+from reporting import log_model, log_full_model_diagnostics, log_model_comparison
+
+from results import (
+    ensure_out_dir,
+    plot_coef_forest,
+    plot_actual_vs_predicted,
+    plot_residuals_vs_fitted,
+)
 
 logger = logging.getLogger(__name__)
-
-
-def log_model(label: str, ols_out) -> None:
-    logger.info("%s", "\n" + "=" * 80)
-    logger.info("%s", label)
-    logger.info("%s", "=" * 80)
-
-    m = ols_out.metrics
-    logger.info(
-        "R²=%.4f | adj R²=%.4f | n=%d | df_model=%d",
-        m["r2"],
-        m["adj_r2"],
-        int(m["n_obs"]),
-        int(m["df_model"]),
-    )
-
-    # sort by p-value, then by |t|
-    coef = ols_out.coefficients.copy()
-    coef["abs_t"] = coef["t"].abs()
-    coef = coef.sort_values(["p", "abs_t"], ascending=[True, False])
-
-    # show top 15 (excluding intercept)
-    view = coef[coef["predictor"] != "const"].head(15)
-    if logger.isEnabledFor(logging.DEBUG):
-        logger.debug(
-            "Top coefficients (lowest p-values):\n%s",
-            view[["predictor", "coef", "std_err", "t", "p", "ci_low", "ci_high"]].to_string(index=False),
-        )
 
 
 def main():
@@ -51,9 +30,9 @@ def main():
     try:
         raw_df = load_data(CONF.CSV)
     except Exception as e:
-        logger.error(f"Error loading data file {CONF.CSV}.")
-        logger.debug(e)
-        exit()
+        logger.error(f"Error loading data file {CONF.CSV}")
+        logger.debug("Load error:", exc_info=e)
+        return
 
     df = clean_data(raw_df)
 
@@ -69,22 +48,16 @@ def main():
         ]
 
     logger.info("Data summary:")
-    logger.debug("Rows after cleaning: %d", len(df))
+    logger.debug(f"Rows after cleaning: {len(df)}")
     logger.info(
-        "Role counts: binary=%d, ordinal=%d, continuous=%d",
-        len(roles["binary"]),
-        len(roles["ordinal"]),
-        len(roles["continuous"]),
+        f"Role counts: binary={len(roles["binary"])}, ordinal={len(roles["ordinal"])}, continuous={len(roles["continuous"])}",
     )
-    logger.info("Target: %s", roles["target"])
+    logger.info(f"Target: {roles["target"]}")
 
     # 3) Build X/y for each model
     X_base, y = build_baseline_xy(df, roles)
-    X_behav, y2 = build_behavior_xy(df, roles)   # default includes exam_difficulty_num if present
-    X_full, y3 = build_full_xy(df, roles)
-
-    # sanity: same y index
-    assert y.index.equals(y2.index) and y.index.equals(y3.index)
+    X_behav, _ = build_behavior_xy(df, roles)   # default includes exam_difficulty_num if present
+    X_full, _ = build_full_xy(df, roles)
 
     # 4) Fit OLS models
     ols_base = run_ols(X_base, y, robust=CONF.OSL_ROBUST)
@@ -98,34 +71,40 @@ def main():
 
     log_model("Full model (binary + ordinal + continuous)", ols_full)
 
-# Diagnostic part
-    logger.info("%s", "\n" + "-" * 80)
-    logger.info("Diagnostics (FULL model)")
-    logger.info("%s", "-" * 80)
+    # Diagnostics + model comparison
+    log_full_model_diagnostics(X_full, ols_full)
+    log_model_comparison(ols_base, ols_beh, ols_full)
 
-    try:
-        vif = compute_vif(X_full)
-        logger.info("Top VIFs (largest first):\n%s", vif.sort_values("vif", ascending=False).head(15).to_string(index=False))
-    except Exception as e:
-        logger.warning("VIF skipped (reason: %s)", e)
 
-    try:
-        resid = residual_summary(ols_full)
-        logger.info("Residual summary:")
-        for k, v in resid.items():
-            logger.info("%s: %.4f", k, v)
-    except Exception as e:
-        logger.warning("Residual summary skipped (reason: %s)", e)
+    # Visual outputs (FULL model)
+    out_dir = Path(getattr(CONF, "OUT_DIR", "outputs"))
+    ensure_out_dir(out_dir)
 
-    # 7) Model comparison (key story)
-    logger.info("%s", "\n" + "-" * 80)
-    logger.info("Model comparison")
-    logger.info("%s", "-" * 80)
-    logger.info("Baseline R²: %.4f", ols_base.metrics["r2"])
-    logger.info("Behavior  R²: %.4f", ols_beh.metrics["r2"])
-    logger.info("Full      R²: %.4f", ols_full.metrics["r2"])
-    logger.info("ΔR² (Full - Baseline): %.4f", (ols_full.metrics["r2"] - ols_base.metrics["r2"]))
-    logger.info("ΔR² (Full - Behavior): %.4f", (ols_full.metrics["r2"] - ols_beh.metrics["r2"]))
+    y_pred_full = predict_ols(ols_full, X_full)
+    robust_label = CONF.OSL_ROBUST or "non-robust"
+
+    plot_coef_forest(
+        ols_full,
+        title=f"Top 15 coefficients (FULL model) — {robust_label}",
+        out_path=out_dir / "coef_forest_full.png",
+        top_k=15,
+    )
+
+    plot_actual_vs_predicted(
+        y_true=y,
+        y_pred=y_pred_full,
+        title="Actual vs Predicted (FULL model)",
+        out_path=out_dir / "actual_vs_pred_full.png",
+    )
+
+    plot_residuals_vs_fitted(
+        y_true=y,
+        y_pred=y_pred_full,
+        title="Residuals vs Fitted (FULL model)",
+        out_path=out_dir / "residuals_vs_fitted_full.png",
+    )
+
+    logger.info(f"Saved plots to: {out_dir.resolve()}")
 
 
 if __name__ == "__main__":
