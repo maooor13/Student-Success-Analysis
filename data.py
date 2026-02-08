@@ -1,74 +1,247 @@
 import numpy as np
 import pandas as pd
-from scipy import stats
-from numpy.ma.extras import average
 
 
-def import_data(filepath='data/Exam_Score_Prediction.csv'):
+# -----------------------------
+# Universal categorical inference
+# -----------------------------
+
+def infer_categorical_mappings(df: pd.DataFrame) -> pd.DataFrame:
+    """Infer binary/ordinal mappings for *any* object column by its value set.
+
+    Rules:
+    - Binary (yes/no-like) -> create `<col>_num` (0/1)
+    - Ordinal sets -> create `<col>_num`
+      * {poor, average, good} -> 1..3
+      * {easy, moderate, hard} -> 1..3
+      * {low, medium, high} -> 1..3
+
+    Columns that do not match known sets are left as-is.
+    """
+    new_df = df.copy()
+
+    yes_set = {"yes", "y", "true", "1"}
+    no_set = {"no", "n", "false", "0"}
+
+    ordinal_maps = {
+        frozenset(["poor", "average", "good"]): {"poor": 1, "average": 2, "good": 3},
+        frozenset(["easy", "moderate", "hard"]): {"easy": 1, "moderate": 2, "hard": 3},
+        frozenset(["low", "medium", "high"]): {"low": 1, "medium": 2, "high": 3},
+    }
+
+    obj_cols = new_df.select_dtypes(include=["object"]).columns.tolist()
+    for col in obj_cols:
+        values = new_df[col]
+        uniq = set(values.unique().tolist())
+        if not uniq:
+            continue
+
+        # Binary inference
+        if uniq.issubset(yes_set | no_set):
+            new_df[f"{col}_num"] = values.isin(yes_set).astype(int)
+            new_df = new_df.drop(columns=[col])
+            continue
+
+        # Ordinal inference
+        created_num = False
+        for key, mapping in ordinal_maps.items():
+            if uniq.issubset(key):
+                new_df[f"{col}_num"] = values.map(mapping)
+                created_num = True
+                break
+        if created_num:
+            new_df = new_df.drop(columns=[col])
+
+    return new_df
+
+
+# -----------------------------
+# Universal outlier handling
+# -----------------------------
+
+def apply_iqr_outlier_removal(
+    df: pd.DataFrame,
+    exclude: list[str] | None = None,
+    k: float = 1.5,
+    min_unique: int = 7
+) -> pd.DataFrame:
+    """Apply IQR outlier removal ONLY to continuous numeric columns.
+
+    Rules:
+    - Operates only on numeric columns
+    - Skips columns with low cardinality (binary / ordinal scales)
+    - A column is considered continuous if it has >= `min_unique` unique values
+    - Removes a row if it is an outlier in ANY included continuous column
+    """
+    new_df = df.copy()
+    exclude = set(exclude or [])
+
+    # candidate numeric columns
+    numeric_cols = [
+        c for c in new_df.select_dtypes(include=["number"]).columns
+        if c not in exclude
+    ]
+
+    # keep only continuous-like columns
+    continuous_cols = []
+    for col in numeric_cols:
+        uniq = new_df[col].unique()
+        if len(uniq) >= min_unique:
+            continuous_cols.append(col)
+
+    if not continuous_cols:
+        return new_df
+
+    mask = pd.Series(True, index=new_df.index)
+
+    for col in continuous_cols:
+        series = new_df[col].astype(float)
+        q1 = series.quantile(0.25)
+        q3 = series.quantile(0.75)
+        iqr = q3 - q1
+
+        if pd.isna(iqr) or iqr == 0:
+            continue
+
+        lower = q1 - k * iqr
+        upper = q3 + k * iqr
+
+        mask &= series.between(lower, upper)
+
+    return new_df.loc[mask].copy()
+
+
+def log1p_series(s: pd.Series) -> pd.Series:
+    """Safe log transform. Assumes s is numeric and >= 0."""
+    return np.log1p(s)
+
+
+def add_log_features(
+    df: pd.DataFrame,
+    *,
+    min_unique: int = 7,
+    skew_threshold: float = 1.0,
+    exclude: list[str] | None = None
+) -> tuple[pd.DataFrame, list[str]]:
+    """Create log1p-transformed features for eligible continuous numeric columns.
+
+    Eligibility (per column):
+    - numeric dtype (or coercible to numeric)
+    - >= `min_unique` unique values (continuous-like)
+    - non-negative values
+    - right-skew above `skew_threshold`
+
+    Returns:
+    - (new_df, created_log_columns)
+    """
+    new_df = df.copy()
+    exclude_set = set(exclude or [])
+
+    created: list[str] = []
+    numeric_cols = [c for c in new_df.select_dtypes(include=["number"]).columns if c not in exclude_set]
+
+    for col in numeric_cols:
+        s = new_df[col].astype(float)
+
+        # continuous-like?
+        if s.nunique() < min_unique:
+            continue
+
+        # must be non-negative to use log1p safely
+        if (s < 0).any():
+            continue
+
+        # only apply if strongly right-skewed
+        skew = s.skew()
+        if pd.isna(skew) or skew <= skew_threshold:
+            continue
+
+        new_col = f"{col}_log"
+        new_df[new_col] = log1p_series(s)
+        created.append(new_col)
+        # Drop the source column once the reshaped/log feature is created
+        if col in new_df.columns:
+            new_df = new_df.drop(columns=[col])
+
+    return new_df, created
+
+
+def load_data(filepath='data/Exam_Score_Prediction.csv'):
     '''
     filepath must be a path to a csv file. It can be absolute or relative.
     '''
-    return pd.read_csv(filepath)
+    df = pd.read_csv(filepath)
+    return df
 
 
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     clean_df = df.copy()
-    clean_df = sleep_quality_map(clean_df)
-    clean_df = clean_df.dropna(subset=['exam_score','study_method']) #clearing empty cells for honest mean and ranking
-    clean_df['sleep_time_log'] = log1_column(clean_df, 'sleep_hours') #creating log values - for accuracy and stability of correlation
-    clean_df['age_log'] = log1_column(clean_df, 'age') #creating log values - for accuracy and stability of correlation
-    clean_df['sleep_quality_log'] = np.log(clean_df['sleep_quality_num'])  #creating log values (using regular log, no possible 0 value)
+    # 1) First protective layer: normalize common missing tokens and drop missing rows
+    obj_cols = clean_df.select_dtypes(include=["object"]).columns
+    if len(obj_cols) > 0:
+        # strip whitespace
+        clean_df[obj_cols] = clean_df[obj_cols].apply(lambda s: s.astype(str).str.strip())
+        # convert common missing tokens to real NaN so dropna removes them
+        missing_tokens = {"", "nan", "na", "n/a", "none", "null"}
+        clean_df[obj_cols] = clean_df[obj_cols].apply(
+            lambda s: s.mask(s.str.lower().isin(missing_tokens), np.nan)
+        )
 
+    clean_df = clean_df.dropna()
+
+    # 2) Infer binary/ordinal mappings for object columns (adds *_num)
+    clean_df = infer_categorical_mappings(clean_df)           
+
+    # 3) Rule-based log features for eligible skewed continuous numeric columns
+    clean_df, _ = add_log_features(
+        clean_df,
+        min_unique=7,
+        skew_threshold=1.0,
+        exclude=["exam_score"],
+    )
+
+    # 4) Global IQR outlier removal across continuous numeric columns only
+    clean_df = apply_iqr_outlier_removal(
+        clean_df,
+        exclude=[],
+        k=1.5,
+        min_unique=7,
+    )
     return clean_df
 
 
-# --- Steiger's Z-Test Implementation ---
-def calculate_steiger_z(r12, r13, r23, n):
-    """
-    Tests if the difference between dependent correlations r12 and r13 is significant.
-    r12: corr(Target, Predictor A)
-    r13: corr(Target, Predictor B)
-    r23: corr(Predictor A, Predictor B)
-    n:   Sample size
-    """
-    # 1. Fisher's z-transform
-    z12 = np.arctanh(r12)
-    z13 = np.arctanh(r13)
-    
-    # 2. Calculate Mean Correlation (r_bar)
-    r_bar = (r12 + r13) / 2
+def infer_column_roles(
+    df: pd.DataFrame,
+    *,
+    target: str = "exam_score",
+    max_ordinal_levels: int = 7,
+) -> dict[str, list[str] | str]:
+ 
+    if target not in df.columns:
+        raise KeyError(f"Target column '{target}' not found in dataframe")
 
-    # 3. Calculate Factor 'f' (relationship between predictors vs outcome)
-    # This adjusts for the fact that r12 and r13 are not independent
-    f = (1 - r23) / (2 * (1 - r_bar**2))
+    roles: dict[str, list[str] | str] = {
+        "target": target,
+        "binary": [],
+        "ordinal": [],
+        "continuous": [],
+    }
 
-    # 4. Calculate Factor 'h' (weighting factor for variance)
-    h = (1 - (f * r_bar**2)) / (1 - r_bar**2)
+    for col in df.columns:
+        if col == target:
+            continue
 
-    # 5. Standard Error of the difference
-    se = np.sqrt((2 * (1 - r23) * h) / (n - 3))
+        s = df[col]
+        if not pd.api.types.is_numeric_dtype(s):
+            continue
 
-    # 6. Z-score and P-value
-    z_score = (z12 - z13) / se
-    p_value = 2 * (1 - stats.norm.cdf(np.abs(z_score)))
+        nunique = s.nunique()
 
-    return z_score, p_value
+        if nunique == 2:
+            roles["binary"].append(col)
+        elif 3 <= nunique <= max_ordinal_levels:
+            roles["ordinal"].append(col)
+        elif nunique > max_ordinal_levels:
+            roles["continuous"].append(col)
 
-
-def log1_column (df, string): #valid for numeral data only
-    tmp_df = df.copy()
-    tmp_df['new_log'] = np.log1p(df[string])
-    return tmp_df['new_log']
-
-
-def sleep_quality_map (df: pd.DataFrame):
-    '''
-    'sleep_quality' is an ordinal variable but it is a text, so we convert it to numbers 
-    
-    :param df: DataFrame with the data
-    :type df: pd.DataFrame
-    '''
-    new_df = df.copy()
-    quality_num_map = {'poor': 1, 'average': 2, 'good': 3}  # creating a map to turn strings into numbers
-    new_df["sleep_quality_num"] = new_df['sleep_quality'].map(quality_num_map)  # using the map to translate strings into numbers
-    return new_df
+    return roles
