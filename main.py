@@ -30,7 +30,7 @@ def main():
     try:
         raw_df = load_data(CONF.CSV)
     except Exception as e:
-        logger.error("Error loading data file %s", CONF.CSV)
+        logger.error(f"Error loading data file {CONF.CSV}")
         logger.debug("Load error:", exc_info=e)
         return
 
@@ -48,14 +48,11 @@ def main():
         ]
 
     logger.info("Data summary:")
-    logger.debug("Rows after cleaning: %d", len(df))
+    logger.debug(f"Rows after cleaning: {len(df)}")
     logger.info(
-        "Role counts: binary=%d, ordinal=%d, continuous=%d",
-        len(roles["binary"]),
-        len(roles["ordinal"]),
-        len(roles["continuous"]),
+        f"Role counts: binary={len(roles["binary"])}, ordinal={len(roles["ordinal"])}, continuous={len(roles["continuous"])}",
     )
-    logger.info("Target: %s", roles["target"])
+    logger.info(f"Target: {roles["target"]}")
 
     # 3) Build X/y for each model
     X_base, y = build_baseline_xy(df, roles)
@@ -107,7 +104,7 @@ def main():
         out_path=out_dir / "residuals_vs_fitted_full.png",
     )
 
-    logger.info("Saved plots to: %s", out_dir.resolve())
+    logger.info(f"Saved plots to: {out_dir.resolve()}")
 
 
 if __name__ == "__main__":
