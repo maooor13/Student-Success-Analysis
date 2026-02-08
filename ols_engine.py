@@ -107,7 +107,6 @@ def predict_ols(
     add_constant: bool = True,
 ) -> np.ndarray:
     """Predict using a fitted ols_outputs model."""
-    _require_statsmodels()
 
     X_mat = X.copy()
     if add_constant:
