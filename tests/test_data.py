@@ -11,7 +11,12 @@ def mock_data():
         11, 11, 12, 12, 13, 14, 15, 
         85, 90, 100  # These should be removed
     ]
-    return pd.DataFrame({'scores': values})
+    binary_col = [
+        0, 1, 0, 1, 0, 1, 0, 1, 0, 100,
+        0, 1, 0, 1, 0, 1, 0, 1, 0, 100,
+        0, 1, 0, 1, 0, 1, 0, 1, 0, 100
+    ]
+    return pd.DataFrame({'scores': values, 'binary_col': binary_col})
 
 def test_remove_outliers_count(mock_data):
     cleaned_df = apply_iqr_outlier_removal(mock_data)
@@ -31,3 +36,13 @@ def test_normal_values_remain(mock_data):
     
     # Assert: A normal value like 7 should still be there
     assert 7 in cleaned_df['scores'].values
+
+
+def test_skips_low_cardinality(mock_data):
+    # Even though 100 is mathematically an outlier, the rule says skip it
+    # Setting min_unique=7 (default) means 'binary_col' (2 unique) should be ignored
+    result = apply_iqr_outlier_removal(mock_data)
+    
+    # Assert: The row with 100 still exists because the column was skipped
+    assert len(result) == 27 # We expect 27 because the function removes 3 of a different column
+    assert 100 in result['binary_col'].values
